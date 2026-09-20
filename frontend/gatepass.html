@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gate Passes - Visitor Entry System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo">
+                <span>&#128396;</span>
+                <span>Visitor Entry System</span>
+            </div>
+            <div class="nav-links">
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('visitors') }}">Visitors</a>
+                <a href="{{ url_for('gatepass') }}" class="active">Gate Passes</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+            <div class="user-menu">
+                <span class="user-info">{{ username }} ({{ role }})</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container page-layout">
+        <div class="page-header">
+            <div class="page-title">
+                <h1>Gate Pass Management</h1>
+                <p>Create and manage gate passes for visitors.</p>
+            </div>
+            <div class="page-actions">
+                {% if can_create %}
+                <button id="openPassModal" class="btn btn-primary">
+                    <span>&#43;</span> Generate Gate Pass
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="passModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Generate New Gate Pass</h3>
+                    <button class="modal-close" id="closePassModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="gatePassForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Visitor *</label>
+                                <select id="visitorSelect" class="form-select" required>
+                                    <option value="">Select Visitor</option>
+                                    {% for v in visitors %}
+                                    <option value="{{ v.id }}">{{ v.full_name }} - {{ v.company or 'N/A' }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Pass Number *</label>
+                                <input type="text" id="passNumber" class="form-input" required placeholder="e.g. GP-00123">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Valid From *</label>
+                                <input type="datetime-local" id="validFrom" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Valid To *</label>
+                                <input type="datetime-local" id="validTo" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelPassForm">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="savePassBtn">Generate Pass</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <h2>All Gate Passes</h2>
+                <div class="header-actions">
+                    <input type="text" id="passSearch" class="form-input search-box" placeholder="Search passes...">
+                </div>
+            </div>
+            {% if passes %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Pass Number</th>
+                        <th>Visitor Name</th>
+                        <th>Valid From</th>
+                        <th>Valid To</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th style="text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="passTableBody">
+                    {% for p in passes %}
+                    <tr>
+                        <td>{{ p.id }}</td>
+                        <td><strong>{{ p.pass_number }}</strong></td>
+                        <td>{{ p.visitor_name }}</td>
+                        <td>{{ p.valid_from }}</td>
+                        <td>{{ p.valid_to }}</td>
+                        <td>
+                            {% if p.status == 'active' %}
+                            <span class="status-badge status-active">Active</span>
+                            {% elif p.status == 'expired' %}
+                            <span class="status-badge status-expired">Expired</span>
+                            {% elif p.status == 'revoked' %}
+                            <span class="status-badge status-inactive">Revoked</span>
+                            {% else %}
+                            <span class="status-badge status-completed">Completed</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ p.created_at }}</td>
+                        <td class="action-group">
+                            <button class="action-btn view" title="View Details" onclick="viewPass({{ p.id }})">&#128124;</button>
+                            {% if can_manage_status and p.status != 'active' %}
+                            <button class="action-btn edit" title="Reactivate" onclick="reactivatePass({{ p.id }})">&#8640;</button>
+                            {% endif %}
+                            {% if can_manage_status and p.status == 'active' %}
+                            <button class="action-btn edit" title="Revoke" onclick="revokePass({{ p.id }})">&#128336;</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">&#129392;</div>
+                <p>No gate passes have been generated yet.</p>
+                <button id="createFirstPass" class="btn btn-primary">
+                    <span>&#43;</span> Create First Gate Pass
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+    <script>
+        const passModal = document.getElementById('passModal');
+        const gatePassForm = document.getElementById('gatePassForm');
+        const savePassBtn = document.getElementById('savePassBtn');
+
+        function setDefaultDateTime() {
+            const now = new Date();
+            const from = new Date(now.getTime());
+            const to = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+            document.getElementById('validFrom').value = from.toISOString().slice(0, 16);
+            document.getElementById('validTo').value = to.toISOString().slice(0, 16);
+        }
+
+        const openPassModalBtn = document.getElementById('openPassModal');
+        if (openPassModalBtn) {
+            openPassModalBtn.addEventListener('click', () => {
+                setDefaultDateTime();
+                showModal(passModal, null);
+            });
+        }
+        document.getElementById('closePassModal').addEventListener('click', () => {
+            hideModal(passModal, gatePassForm);
+        });
+        document.getElementById('cancelPassForm').addEventListener('click', () => {
+            hideModal(passModal, gatePassForm);
+        });
+        {% if passes %}
+        passModal.addEventListener('click', (e) => {
+            if (e.target === passModal) hideModal(passModal, gatePassForm);
+        });
+        {% endif %}
+        const createFirstPassBtn = document.getElementById('createFirstPass');
+        if (createFirstPassBtn) {
+            createFirstPassBtn.addEventListener('click', () => {
+                setDefaultDateTime();
+                showModal(passModal, null);
+            });
+        }
+
+        gatePassForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            setButtonLoading(savePassBtn, true);
+            try {
+                const res = await fetch('/api/gatepass', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        visitor_id: document.getElementById('visitorSelect').value,
+                        pass_number: document.getElementById('passNumber').value,
+                        valid_from: document.getElementById('validFrom').value,
+                        valid_to: document.getElementById('validTo').value
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    toast.success('Gate pass generated successfully!');
+                    hideModal(passModal, gatePassForm);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast.error(data.error || 'Failed to generate gate pass.');
+                }
+            } catch (err) {
+                toast.error('Network error. Please try again.');
+            }
+            setButtonLoading(savePassBtn, false);
+        });
+
+        async function revokePass(passId) {
+            if (!confirm('Revoke this gate pass?')) return;
+            try {
+                const res = await fetch('/api/gatepass/' + passId + '/status', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'revoked' })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    toast.success('Gate pass revoked.');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast.error(data.error || 'Failed to revoke pass.');
+                }
+            } catch (err) {
+                toast.error('Network error.');
+            }
+        }
+
+        async function reactivatePass(passId) {
+            if (!confirm('Reactivate this gate pass?')) return;
+            try {
+                const res = await fetch('/api/gatepass/' + passId + '/status', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'active' })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    toast.success('Gate pass reactivated.');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast.error(data.error || 'Failed to reactivate pass.');
+                }
+            } catch (err) {
+                toast.error('Network error.');
+            }
+        }
+
+        async function viewPass(passId) {
+            try {
+                const res = await fetch('/api/gatepass/' + passId);
+                if (!res.ok) throw new Error('Gate pass not found');
+                const p = await res.json();
+                const msg =
+                    'Pass #: ' + p.pass_number + '\n' +
+                    'Visitor: ' + p.visitor_name + '\n' +
+                    'Valid From: ' + p.valid_from + '\n' +
+                    'Valid To: ' + p.valid_to + '\n' +
+                    'Status: ' + p.status + '\n' +
+                    'Created: ' + p.created_at;
+                alert(msg);
+            } catch (err) {
+                toast.error('Could not load gate pass details.');
+            }
+        }
+
+        attachSearch('#passSearch', '#passTableBody tr');
+    </script>
+</body>
+</html>

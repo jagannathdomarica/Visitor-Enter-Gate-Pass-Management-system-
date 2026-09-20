@@ -526,6 +526,34 @@ def delete_user(user_id):
     return jsonify({"message": "User deleted successfully"})
 
 
+@app.route("/api/stats")
+@login_required_json
+def api_stats():
+    conn = get_db()
+    today = datetime.now().strftime("%Y-%m-%d")
+    total_visitors = conn.execute("SELECT COUNT(*) FROM visitors").fetchone()[0]
+    total_today = conn.execute(
+        "SELECT COUNT(*) FROM visitors WHERE date(entry_time) = ?", (today,)
+    ).fetchone()[0]
+    active_visitors = conn.execute(
+        "SELECT COUNT(*) FROM visitors WHERE exit_time IS NULL"
+    ).fetchone()[0]
+    total_passes = conn.execute("SELECT COUNT(*) FROM gatepasses").fetchone()[0]
+    active_passes = conn.execute(
+        "SELECT COUNT(*) FROM gatepasses WHERE status = 'active'"
+    ).fetchone()[0]
+    total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    conn.close()
+    return jsonify({
+        "total_visitors": total_visitors,
+        "total_today": total_today,
+        "active_visitors": active_visitors,
+        "total_passes": total_passes,
+        "active_passes": active_passes,
+        "total_users": total_users,
+    })
+
+
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5001)

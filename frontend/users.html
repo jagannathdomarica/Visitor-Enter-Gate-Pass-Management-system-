@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users - Visitor Entry System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo">
+                <span>&#128396;</span>
+                <span>Visitor Entry System</span>
+            </div>
+            <div class="nav-links">
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('visitors') }}">Visitors</a>
+                <a href="{{ url_for('gatepass') }}">Gate Passes</a>
+                <a href="{{ url_for('user_management') }}" class="active">Users</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+            <div class="user-menu">
+                <span class="user-info">{{ username }} ({{ role }})</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container page-layout">
+        <div class="page-header">
+            <div class="page-title">
+                <h1>User Management</h1>
+                <p>Manage system users and their roles.</p>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <h2>All Users</h2>
+                <input type="text" id="userSearch" class="form-input search-box" placeholder="Search users...">
+            </div>
+            {% if users %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th style="text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    {% for u in users %}
+                    <tr>
+                        <td>{{ u.id }}</td>
+                        <td><strong>{{ u.username }}</strong></td>
+                        <td>
+                            {% if u.role == 'admin' %}
+                            <span class="status-badge status-active">Admin</span>
+                            {% elif u.role == 'staff' %}
+                            <span class="status-badge status-completed">Staff</span>
+                            {% else %}
+                            <span class="status-badge status-inactive">Student</span>
+                            {% endif %}
+                        </td>
+                        <td class="action-group">
+                            {% if u.username != 'admin' %}
+                            <button class="action-btn delete" title="Delete User" onclick="deleteUser({{ u.id }})">&#128351;</button>
+                            {% else %}
+                            <button class="action-btn view" title="Protected Account">&#9888;</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">&#128195;</div>
+                <p>No users found.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+    <script>
+        async function deleteUser(userId) {
+            if (!confirm('Delete this user? This cannot be undone.')) return;
+            try {
+                const res = await fetch('/api/users/' + userId, { method: 'DELETE' });
+                const data = await res.json();
+                if (res.ok) {
+                    toast.success('User deleted.');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast.error(data.error || 'Failed to delete user.');
+                }
+            } catch (err) {
+                toast.error('Network error.');
+            }
+        }
+
+        attachSearch('#userSearch', '#userTableBody tr');
+    </script>
+</body>
+</html>

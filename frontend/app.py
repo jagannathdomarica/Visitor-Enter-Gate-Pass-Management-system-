@@ -190,5 +190,34 @@ def visitors():
         username=session["username"],
         role=session["role"],
     )
+
+
+@app.route("/gatepass")
+def gatepass():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    conn = get_db()
+    passes = conn.execute(
+        """
+        SELECT g.*, v.full_name as visitor_name
+        FROM gatepasses g
+        JOIN visitors v ON g.visitor_id = v.id
+        ORDER BY g.id DESC
+        """
+    ).fetchall()
+    visitors = conn.execute(
+        "SELECT id, full_name FROM visitors ORDER BY id DESC"
+    ).fetchall()
+    conn.close()
+    return render_template(
+        "gatepass.html",
+        passes=[dict_row(r) for r in passes],
+        visitors=[dict_row(r) for r in visitors],
+        username=session["username"],
+        role=session["role"],
+    )
+
+
+if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

@@ -76,6 +76,13 @@ def dict_row(row):
     return {k: row[k] for k in row.keys()}
 
 
+def check_role(*allowed_roles):
+    return session.get("role") in allowed_roles
+
+
+def login_required_json(f):
+
+
 @app.route("/")
 def index():
     if "user_id" in session:
@@ -189,6 +196,9 @@ def visitors():
         visitors=[dict_row(r) for r in rows],
         username=session["username"],
         role=session["role"],
+        can_add=check_role("admin", "staff"),
+        can_edit=check_role("admin", "staff"),
+        can_delete=check_role("admin"),
     )
 
 
@@ -215,6 +225,8 @@ def gatepass():
         visitors=[dict_row(r) for r in visitors],
         username=session["username"],
         role=session["role"],
+        can_create=check_role("admin", "staff"),
+        can_manage_status=check_role("admin"),
     )
 
 
@@ -224,6 +236,8 @@ def api_visitors():
         return jsonify({"error": "Unauthorized"}), 401
 
     if request.method == "POST":
+        if not check_role("admin", "staff"):
+            return jsonify({"error": "Forbidden: insufficient permissions"}), 403
         data = request.get_json()
         full_name = data.get("full_name", "")
         phone = data.get("phone", "")
@@ -262,6 +276,8 @@ def api_visitors():
 def mark_exit(visitor_id):
     if "user_id" not in session:
         return jsonify({"error": "Unauthorized"}), 401
+    if not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
     exit_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_db()
     conn.execute(
@@ -290,6 +306,10 @@ def visitor_detail(visitor_id):
         conn.close()
         return jsonify(dict_row(visitor))
 
+    if not check_role("admin"):
+        conn.close()
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+
     conn.execute("DELETE FROM gatepasses WHERE visitor_id = ?", (visitor_id,))
     conn.execute("DELETE FROM visitors WHERE id = ?", (visitor_id,))
     conn.commit()
@@ -303,6 +323,8 @@ def api_gatepass():
         return jsonify({"error": "Unauthorized"}), 401
 
     if request.method == "POST":
+        if not check_role("admin", "staff"):
+            return jsonify({"error": "Forbidden: insufficient permissions"}), 403
         data = request.get_json()
         visitor_id = data.get("visitor_id")
         pass_number = data.get("pass_number", "")
@@ -360,6 +382,8 @@ def gatepass_detail(pass_id):
 def update_pass_status(pass_id):
     if "user_id" not in session:
         return jsonify({"error": "Unauthorized"}), 401
+    if not check_role("admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
     status = request.get_json().get("status", "")
     conn = get_db()
     conn.execute(

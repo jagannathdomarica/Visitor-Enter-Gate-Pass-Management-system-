@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Visitor Entry System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">&#128396;</div>
+                <h1>Welcome Back</h1>
+                <p>Sign in to access the Visitor Entry System</p>
+            </div>
+
+            {% if error %}
+            <div class="error-message">
+                <span>&#9888;</span>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        class="form-input"
+                        placeholder="Enter your username"
+                        required
+                        autofocus
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        class="form-input"
+                        placeholder="Enter your password"
+                        required
+                    >
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    Sign In
+                </button>
+            </form>
+
+            <div class="auth-footer">
+                Need help? Contact your system administrator.
+            </div>
+
+            <div class="auth-footer">
+                Don't have an account?
+                <a href="{{ url_for('signup') }}">Create Account</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Entry System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-logo">&#128396;</div>
+            <h1>Visitor Entry System</h1>
+            <p>A complete solution for managing visitor registrations, security, and gate passes in your facility.</p>
+            <div class="features">
+                <div class="feature">
+                    <h3>Visitor Management</h3>
+                    <p>Register visitors, track entry and exit times, and maintain detailed records.</p>
+                </div>
+                <div class="feature">
+                    <h3>Gate Pass Generation</h3>
+                    <p>Generate and manage gate passes with expiration dates and status tracking.</p>
+                </div>
+                <div class="feature">
+                    <h3>Dashboard Analytics</h3>
+                    <p>View real-time statistics and recent visitor activity at a glance.</p>
+                </div>
+            </div>
+            <a href="{{ url_for('login') }}" class="btn btn-primary" style="margin-top: 16px;">
+                Sign In to Continue
+            </a>
+        </div>
+    </section>
+</body>
+</html>

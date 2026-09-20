@@ -1,7 +1,10 @@
 import os
 import sqlite3
+import csv
+import io
+from functools import wraps
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
 
 app = Flask(__name__, template_folder=".", static_folder=".", static_url_path="/static")
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-visitor-entry-system")
@@ -81,6 +84,12 @@ def check_role(*allowed_roles):
 
 
 def login_required_json(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            return jsonify({"error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 
 @app.route("/")
@@ -392,6 +401,159 @@ def update_pass_status(pass_id):
     conn.commit()
     conn.close()
     return jsonify({"message": "Status updated successfully"})
+
+
+@app.route("/users")
+def user_management():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    if not check_role("admin"):
+        return redirect(url_for("dashboard"))
+    conn = get_db()
+    users = conn.execute("SELECT id, username, role FROM users ORDER BY id").fetchall()
+    conn.close()
+    return render_template(
+        "users.html",
+        users=[dict_row(r) for r in users],
+        username=session["username"],
+        role=session["role"],
+    )
+
+
+@app.route("/api/users")
+@login_required_json
+def api_users():
+    if not check_role("admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    conn = get_db()
+    users = conn.execute("SELECT id, username, role FROM users ORDER BY id").fetchall()
+    conn.close()
+    return jsonify({"users": [dict_row(r) for r in users]})
+
+
+@app.route("/api/users/<int:user_id>", methods=["DELETE"])
+@login_required_json
+def delete_user(user_id):
+    if not check_role("admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    if session["user_id"] == user_id:
+        return jsonify({"error": "Cannot delete your own account"}), 400
+    conn = get_db()
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "User deleted successfully"})
+
+
+@app.route("/api/visitors/search")
+@login_required_json
+def search_visitors():
+    name = request.args.get("name", "")
+    date = request.args.get("date", "")
+    status = request.args.get("status", "")
+    query = "SELECT * FROM visitors WHERE 1=1"
+    params = []
+    if name:
+        query += " AND full_name LIKE ?"
+        params.append(f"%{name}%")
+    if date:
+        query += " AND date(entry_time) = ?"
+        params.append(date)
+    if status == "active":
+        query += " AND exit_time IS NULL"
+    elif status == "completed":
+        query += " AND exit_time IS NOT NULL"
+    query += " ORDER BY id DESC"
+    conn = get_db()
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return jsonify({"visitors": [dict_row(r) for r in rows]})
+
+
+@app.route("/api/visitors/export")
+@login_required_json
+def export_visitors():
+    if not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, full_name, phone, email, company, purpose, "
+        "vehicle_number, entry_time, exit_time FROM visitors ORDER BY id DESC"
+    ).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Name", "Phone", "Email", "Company", "Purpose",
+                     "Vehicle", "Entry Time", "Exit Time"])
+    for row in rows:
+        writer.writerow([row[k] for k in row.keys()])
+
+    response = Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=visitors.csv"},
+    )
+    return response
+
+
+@app.route("/api/gatepass/export")
+@login_required_json
+def export_gatepasses():
+    if not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT g.id, g.pass_number, v.full_name as visitor_name,
+               g.valid_from, g.valid_to, g.status, g.created_at
+        FROM gatepasses g
+        JOIN visitors v ON g.visitor_id = v.id
+        ORDER BY g.id DESC
+        """
+    ).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Pass Number", "Visitor", "Valid From", "Valid To", "Status", "Created At"])
+    for row in rows:
+        writer.writerow([row[k] for k in row.keys()])
+
+    response = Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=gatepasses.csv"},
+    )
+    return response
+
+
+@app.route("/api/stats")
+@login_required_json
+def api_stats():
+    conn = get_db()
+    today = datetime.now().strftime("%Y-%m-%d")
+    total_visitors = conn.execute("SELECT COUNT(*) FROM visitors").fetchone()[0]
+    total_today = conn.execute(
+        "SELECT COUNT(*) FROM visitors WHERE date(entry_time) = ?", (today,)
+    ).fetchone()[0]
+    active_visitors = conn.execute(
+        "SELECT COUNT(*) FROM visitors WHERE exit_time IS NULL"
+    ).fetchone()[0]
+    total_passes = conn.execute("SELECT COUNT(*) FROM gatepasses").fetchone()[0]
+    active_passes = conn.execute(
+        "SELECT COUNT(*) FROM gatepasses WHERE status = 'active'"
+    ).fetchone()[0]
+    total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    conn.close()
+    return jsonify({
+        "total_visitors": total_visitors,
+        "total_today": total_today,
+        "active_visitors": active_visitors,
+        "total_passes": total_passes,
+        "active_passes": active_passes,
+        "total_users": total_users,
+    })
 
 
 if __name__ == "__main__":

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Visitor Entry System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/script.js" defer></script>
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo">
+                <span>&#128396;</span>
+                <span>Visitor Entry System</span>
+            </div>
+            <div class="nav-links">
+                <a href="{{ url_for('dashboard') }}" class="active">Dashboard</a>
+                <a href="{{ url_for('visitors') }}">Visitors</a>
+                <a href="{{ url_for('gatepass') }}">Gate Passes</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+            <div class="user-menu">
+                <span class="user-info">{{ username }} ({{ role }})</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container page-layout">
+        <div class="page-title">
+            <h1>Dashboard</h1>
+            <p>Overview of today's visitor activity and recent entries.</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon blue">&#128221;</div>
+                <div class="stat-info">
+                    <h3>{{ total_today }}</h3>
+                    <p>Visitors Today</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon green">&#128396;</div>
+                <div class="stat-info">
+                    <h3>{{ active_visitors }}</h3>
+                    <p>Active Visitors</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon orange">&#129392;</div>
+                <div class="stat-info">
+                    <h3>{{ active_passes }}</h3>
+                    <p>Active Passes</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <h2>Recent Visitors</h2>
+                <a href="{{ url_for('visitors') }}" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">
+                    View All
+                </a>
+            </div>
+            {% if recent_visitors %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Full Name</th>
+                        <th>Phone</th>
+                        <th>Company</th>
+                        <th>Purpose</th>
+                        <th>Entry Time</th>
+                        <th>Exit Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in recent_visitors %}
+                    <tr>
+                        <td>{{ v.id }}</td>
+                        <td><strong>{{ v.full_name }}</strong></td>
+                        <td>{{ v.phone or '-' }}</td>
+                        <td>{{ v.company or '-' }}</td>
+                        <td>{{ v.purpose or '-' }}</td>
+                        <td>{{ v.entry_time }}</td>
+                        <td>{{ v.exit_time or '-' }}</td>
+                        <td>
+                            {% if v.exit_time %}
+                            <span class="status-badge status-completed">Completed</span>
+                            {% else %}
+                            <span class="status-badge status-active">Active</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">&#128195;</div>
+                <p>No visitors have been registered yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

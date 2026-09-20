@@ -218,6 +218,46 @@ def gatepass():
     )
 
 
+@app.route("/api/visitors", methods=["GET", "POST"])
+def api_visitors():
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if request.method == "POST":
+        data = request.get_json()
+        full_name = data.get("full_name", "")
+        phone = data.get("phone", "")
+        email = data.get("email", "")
+        address = data.get("address", "")
+        company = data.get("company", "")
+        purpose = data.get("purpose", "")
+        vehicle_number = data.get("vehicle_number", "")
+        entry_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = get_db()
+        cur = conn.execute(
+            """
+            INSERT INTO visitors
+                (full_name, phone, email, address, company, purpose,
+                 vehicle_number, entry_time, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (full_name, phone, email, address, company, purpose,
+             vehicle_number, entry_time, session["user_id"]),
+        )
+        conn.commit()
+        visitor_id = cur.lastrowid
+        conn.close()
+        return jsonify({"id": visitor_id, "message": "Visitor added successfully"}), 201
+
+    if request.method == "GET":
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT * FROM visitors ORDER BY id DESC"
+        ).fetchall()
+        conn.close()
+        return jsonify({"visitors": [dict_row(r) for r in rows]})
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

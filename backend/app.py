@@ -396,6 +396,136 @@ def export_visitors():
     return response
 
 
+@app.route("/api/gatepass", methods=["GET", "POST"])
+@login_required_json
+def api_gatepass():
+    if request.method == "POST" and not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+
+    if request.method == "POST":
+        data = request.get_json()
+        visitor_id = data.get("visitor_id")
+        pass_number = data.get("pass_number", "")
+        valid_from = data.get("valid_from", "")
+        valid_to = data.get("valid_to", "")
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = get_db()
+        conn.execute(
+            """
+            INSERT INTO gatepasses
+                (visitor_id, pass_number, valid_from, valid_to, status, created_at)
+            VALUES (?, ?, ?, ?, 'active', ?)
+            """,
+            (visitor_id, pass_number, valid_from, valid_to, created_at),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Gate pass created successfully"}), 201
+
+    if request.method == "GET":
+        conn = get_db()
+        rows = conn.execute(
+            """
+            SELECT g.*, v.full_name as visitor_name
+            FROM gatepasses g
+            JOIN visitors v ON g.visitor_id = v.id
+            ORDER BY g.id DESC
+            """
+        ).fetchall()
+        conn.close()
+        return jsonify({"passes": [dict_row(r) for r in rows]})
+
+
+@app.route("/api/gatepass/<int:pass_id>", methods=["GET"])
+@login_required_json
+def gatepass_detail(pass_id):
+    conn = get_db()
+    row = conn.execute(
+        """
+        SELECT g.*, v.full_name as visitor_name
+        FROM gatepasses g
+        JOIN visitors v ON g.visitor_id = v.id
+        WHERE g.id = ?
+        """,
+        (pass_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "Gate pass not found"}), 404
+    return jsonify(dict_row(row))
+
+
+@app.route("/api/gatepass/<int:pass_id>/status", methods=["PUT"])
+@login_required_json
+def update_pass_status(pass_id):
+    if not check_role("admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    status = request.get_json().get("status", "")
+    conn = get_db()
+    conn.execute(
+        "UPDATE gatepasses SET status = ? WHERE id = ?", (status, pass_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Status updated successfully"})
+
+
+@app.route("/api/gatepass/export")
+@login_required_json
+def export_gatepasses():
+    if not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT g.id, g.pass_number, v.full_name as visitor_name,
+               g.valid_from, g.valid_to, g.status, g.created_at
+        FROM gatepasses g
+        JOIN visitors v ON g.visitor_id = v.id
+        ORDER BY g.id DESC
+        """
+    ).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Pass Number", "Visitor", "Valid From", "Valid To", "Status", "Created At"])
+    for row in rows:
+        writer.writerow([row[k] for k in row.keys()])
+
+    response = Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=gatepasses.csv"},
+    )
+    return response
+
+
+@app.route("/api/users")
+@login_required_json
+def api_users():
+    if not check_role("admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    conn = get_db()
+    users = conn.execute("SELECT id, username, role FROM users ORDER BY id").fetchall()
+    conn.close()
+    return jsonify({"users": [dict_row(r) for r in users]})
+
+
+@app.route("/api/users/<int:user_id>", methods=["DELETE"])
+@login_required_json
+def delete_user(user_id):
+    if not check_role("admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    if session["user_id"] == user_id:
+        return jsonify({"error": "Cannot delete your own account"}), 400
+    conn = get_db()
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "User deleted successfully"})
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

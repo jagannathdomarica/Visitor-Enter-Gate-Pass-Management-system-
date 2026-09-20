@@ -111,6 +111,40 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+        role = request.form.get("role", "staff")
+
+        if role == "admin":
+            return render_template("signup.html", error="Admin accounts cannot be self-created")
+        if not username or not password:
+            return render_template("signup.html", error="Username and password are required")
+        if password != confirm:
+            return render_template("signup.html", error="Passwords do not match")
+        if len(password) < 6:
+            return render_template("signup.html", error="Password must be at least 6 characters")
+
+        from werkzeug.security import generate_password_hash
+
+        conn = get_db()
+        try:
+            conn.execute(
+                "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                (username, generate_password_hash(password), role),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            return render_template("signup.html", error="Username already exists")
+        conn.close()
+        return redirect(url_for("login"))
+    return render_template("signup.html")
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

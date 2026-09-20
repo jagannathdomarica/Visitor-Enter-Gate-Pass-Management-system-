@@ -297,6 +297,79 @@ def visitor_detail(visitor_id):
     return jsonify({"message": "Visitor deleted successfully"})
 
 
+@app.route("/api/gatepass", methods=["GET", "POST"])
+def api_gatepass():
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if request.method == "POST":
+        data = request.get_json()
+        visitor_id = data.get("visitor_id")
+        pass_number = data.get("pass_number", "")
+        valid_from = data.get("valid_from", "")
+        valid_to = data.get("valid_to", "")
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = get_db()
+        conn.execute(
+            """
+            INSERT INTO gatepasses
+                (visitor_id, pass_number, valid_from, valid_to, status, created_at)
+            VALUES (?, ?, ?, ?, 'active', ?)
+            """,
+            (visitor_id, pass_number, valid_from, valid_to, created_at),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Gate pass created successfully"}), 201
+
+    if request.method == "GET":
+        conn = get_db()
+        rows = conn.execute(
+            """
+            SELECT g.*, v.full_name as visitor_name
+            FROM gatepasses g
+            JOIN visitors v ON g.visitor_id = v.id
+            ORDER BY g.id DESC
+            """
+        ).fetchall()
+        conn.close()
+        return jsonify({"passes": [dict_row(r) for r in rows]})
+
+
+@app.route("/api/gatepass/<int:pass_id>", methods=["GET"])
+def gatepass_detail(pass_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    conn = get_db()
+    row = conn.execute(
+        """
+        SELECT g.*, v.full_name as visitor_name
+        FROM gatepasses g
+        JOIN visitors v ON g.visitor_id = v.id
+        WHERE g.id = ?
+        """,
+        (pass_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "Gate pass not found"}), 404
+    return jsonify(dict_row(row))
+
+
+@app.route("/api/gatepass/<int:pass_id>/status", methods=["PUT"])
+def update_pass_status(pass_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    status = request.get_json().get("status", "")
+    conn = get_db()
+    conn.execute(
+        "UPDATE gatepasses SET status = ? WHERE id = ?", (status, pass_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Status updated successfully"})
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

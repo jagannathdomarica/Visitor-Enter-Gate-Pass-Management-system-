@@ -175,6 +175,20 @@ def dashboard():
     )
 
 
-if __name__ == "__main__":
+@app.route("/visitors")
+def visitors():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM visitors ORDER BY id DESC"
+    ).fetchall()
+    conn.close()
+    return render_template(
+        "visitor.html",
+        visitors=[dict_row(r) for r in rows],
+        username=session["username"],
+        role=session["role"],
+    )
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

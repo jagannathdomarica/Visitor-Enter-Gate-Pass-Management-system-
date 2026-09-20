@@ -258,6 +258,32 @@ def api_visitors():
         return jsonify({"visitors": [dict_row(r) for r in rows]})
 
 
+@app.route("/api/visitors/<int:visitor_id>/exit", methods=["POST"])
+def mark_exit(visitor_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    exit_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db()
+    conn.execute(
+        "UPDATE visitors SET exit_time = ? WHERE id = ?", (exit_time, visitor_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Exit recorded successfully"})
+
+
+@app.route("/api/visitors/<int:visitor_id>", methods=["DELETE"])
+def delete_visitor(visitor_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    conn = get_db()
+    conn.execute("DELETE FROM gatepasses WHERE visitor_id = ?", (visitor_id,))
+    conn.execute("DELETE FROM visitors WHERE id = ?", (visitor_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Visitor deleted successfully"})
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

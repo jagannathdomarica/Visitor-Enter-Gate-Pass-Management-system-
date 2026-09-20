@@ -50,3 +50,77 @@ button {
     color: #7f8c8d;
     font-size: 14px;
 }
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 30px;
+    gap: 16px;
+}
+
+.page-header .page-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* ===== NAVBAR ===== */
+.navbar {
+    background: #1a2c4a;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.navbar .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+}
+
+.navbar .logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.navbar .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.navbar .nav-links a {
+    color: #e0e6ed;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 4px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.navbar .nav-links a:hover {
+    color: #fff;
+}
+
+.navbar .nav-links a.active {
+    color: #fff;
+    border-bottom-color: #4a90d9;
+}
+
+.navbar .user-menu {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.navbar .user-info {
+    font-size: 14px;
+    color: #e0e6ed;
+}

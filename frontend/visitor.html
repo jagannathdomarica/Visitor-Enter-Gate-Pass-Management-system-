@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitors - Visitor Entry System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo">
+                <span>&#128396;</span>
+                <span>Visitor Entry System</span>
+            </div>
+            <div class="nav-links">
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('visitors') }}" class="active">Visitors</a>
+                <a href="{{ url_for('gatepass') }}">Gate Passes</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+            <div class="user-menu">
+                <span class="user-info">{{ username }} ({{ role }})</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container page-layout">
+        <div class="page-header">
+            <div class="page-title">
+                <h1>Visitor Management</h1>
+                <p>Register new visitors and manage visitor records.</p>
+            </div>
+            <div class="page-actions">
+                {% if can_add %}
+                <button id="openFormBtn" class="btn btn-primary">
+                    <span>&#43;</span> Add New Visitor
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="visitorFormModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add New Visitor</h3>
+                    <button class="modal-close" id="closeModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="visitorForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Full Name *</label>
+                                <input type="text" id="fullName" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" id="phone" class="form-input" placeholder="e.g. 555-1234">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" id="email" class="form-input" placeholder="e.g. john@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Vehicle Number</label>
+                                <input type="text" id="vehicleNumber" class="form-input" placeholder="e.g. ABC-1234">
+                            </div>
+                            <div class="form-group full-width">
+                                <label class="form-label">Address</label>
+                                <textarea id="address" class="form-textarea" rows="3" placeholder="Street address, city, zip..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Company / Organization</label>
+                                <input type="text" id="company" class="form-input" placeholder="e.g. Tech Corp">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Purpose of Visit *</label>
+                                <select id="purpose" class="form-select" required>
+                                    <option value="">Select Purpose</option>
+                                    <option value="Meeting">Meeting</option>
+                                    <option value="Interview">Interview</option>
+                                    <option value="Tour">Tour</option>
+                                    <option value="Delivery">Delivery</option>
+                                    <option value="Maintenance">Maintenance</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelForm">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="saveVisitorBtn">Save Visitor</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <h2>All Visitors</h2>
+                <div class="header-actions">
+                    <input type="text" id="searchInput" class="form-input search-box" placeholder="Search visitors...">
+                </div>
+            </div>
+            {% if visitors %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Full Name</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Company</th>
+                        <th>Purpose</th>
+                        <th>Vehicle</th>
+                        <th>Entry Time</th>
+                        <th>Exit Time</th>
+                        <th>Status</th>
+                        <th style="text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="visitorTableBody">
+                    {% for v in visitors %}
+                    <tr>
+                        <td>{{ v.id }}</td>
+                        <td><strong>{{ v.full_name }}</strong></td>
+                        <td>{{ v.phone or '-' }}</td>
+                        <td>{{ v.email or '-' }}</td>
+                        <td>{{ v.company or '-' }}</td>
+                        <td>{{ v.purpose or '-' }}</td>
+                        <td>{{ v.vehicle_number or '-' }}</td>
+                        <td>{{ v.entry_time }}</td>
+                        <td>{{ v.exit_time or '-' }}</td>
+                        <td>
+                            {% if v.exit_time %}
+                            <span class="status-badge status-completed">Completed</span>
+                            {% else %}
+                            <span class="status-badge status-active">Active</span>
+                            {% endif %}
+                        </td>
+                        <td class="action-group">
+                            <button class="action-btn view" title="View Details" onclick="viewVisitor({{ v.id }})">&#128124;</button>
+                            {% if not v.exit_time and can_edit %}
+                            <button class="action-btn edit" title="Mark Exit" onclick="markExit({{ v.id }})">&#128336;</button>
+                            {% endif %}
+                            {% if can_delete %}
+                            <button class="action-btn delete" title="Delete" onclick="deleteVisitor({{ v.id }})">&#128351;</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">&#128195;</div>
+                <p>No visitors have been registered yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+    <script>
+        const form = document.getElementById('visitorForm');
+        const modal = document.getElementById('visitorFormModal');
+        const saveBtn = document.getElementById('saveVisitorBtn');
+
+        const openFormBtn = document.getElementById('openFormBtn');
+        if (openFormBtn) {
+            openFormBtn.addEventListener('click', () => {
+                showModal(modal, form);
+            });
+        }
+        document.getElementById('closeModal').addEventListener('click', () => {
+            hideModal(modal, form);
+        });
+        document.getElementById('cancelForm').addEventListener('click', () => {
+            hideModal(modal, form);
+        });
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) hideModal(modal, form);
+        });
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            setButtonLoading(saveBtn, true);
+            try {
+                const response = await fetch('/api/visitors', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        full_name: document.getElementById('fullName').value,
+                        phone: document.getElementById('phone').value,
+                        email: document.getElementById('email').value,
+                        address: document.getElementById('address').value,
+                        company: document.getElementById('company').value,
+                        purpose: document.getElementById('purpose').value,
+                        vehicle_number: document.getElementById('vehicleNumber').value
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    toast.success('Visitor added successfully!');
+                    hideModal(modal, form);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast.error(data.error || 'Failed to add visitor.');
+                }
+            } catch (err) {
+                toast.error('Network error. Please try again.');
+            }
+            setButtonLoading(saveBtn, false);
+        });
+
+        async function markExit(visitorId) {
+            if (!confirm('Mark this visitor as exited?')) return;
+            try {
+                const res = await fetch('/api/visitors/' + visitorId + '/exit', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    toast.success('Exit time recorded.');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast.error(data.error || 'Failed to record exit.');
+                }
+            } catch (err) {
+                toast.error('Network error.');
+            }
+        }
+
+        async function deleteVisitor(visitorId) {
+            if (!confirm('Delete this visitor record? This cannot be undone.')) return;
+            try {
+                const res = await fetch('/api/visitors/' + visitorId, { method: 'DELETE' });
+                const data = await res.json();
+                if (res.ok) {
+                    toast.success('Visitor deleted.');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast.error(data.error || 'Failed to delete visitor.');
+                }
+            } catch (err) {
+                toast.error('Network error.');
+            }
+        }
+
+        async function viewVisitor(visitorId) {
+            try {
+                const res = await fetch('/api/visitors/' + visitorId);
+                if (!res.ok) throw new Error('Visitor not found');
+                const v = await res.json();
+                const msg =
+                    'Name: ' + v.full_name + '\n' +
+                    'Phone: ' + (v.phone || 'N/A') + '\n' +
+                    'Email: ' + (v.email || 'N/A') + '\n' +
+                    'Company: ' + (v.company || 'N/A') + '\n' +
+                    'Purpose: ' + (v.purpose || 'N/A') + '\n' +
+                    'Vehicle: ' + (v.vehicle_number || 'N/A') + '\n' +
+                    'Entry: ' + v.entry_time + '\n' +
+                    'Exit: ' + (v.exit_time || 'Still active');
+                alert(msg);
+            } catch (err) {
+                toast.error('Could not load visitor details.');
+            }
+        }
+
+        attachSearch('#searchInput', '#visitorTableBody tr');
+    </script>
+</body>
+</html>

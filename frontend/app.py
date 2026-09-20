@@ -272,11 +272,24 @@ def mark_exit(visitor_id):
     return jsonify({"message": "Exit recorded successfully"})
 
 
-@app.route("/api/visitors/<int:visitor_id>", methods=["DELETE"])
-def delete_visitor(visitor_id):
+@app.route("/api/visitors/<int:visitor_id>", methods=["GET", "DELETE"])
+def visitor_detail(visitor_id):
     if "user_id" not in session:
         return jsonify({"error": "Unauthorized"}), 401
+
     conn = get_db()
+    visitor = conn.execute(
+        "SELECT * FROM visitors WHERE id = ?", (visitor_id,)
+    ).fetchone()
+
+    if not visitor:
+        conn.close()
+        return jsonify({"error": "Visitor not found"}), 404
+
+    if request.method == "GET":
+        conn.close()
+        return jsonify(dict_row(visitor))
+
     conn.execute("DELETE FROM gatepasses WHERE visitor_id = ?", (visitor_id,))
     conn.execute("DELETE FROM visitors WHERE id = ?", (visitor_id,))
     conn.commit()

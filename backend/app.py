@@ -262,6 +262,140 @@ def user_management():
     )
 
 
+@app.route("/api/visitors", methods=["GET", "POST"])
+@login_required_json
+def api_visitors():
+    if request.method == "POST" and not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+
+    if request.method == "POST":
+        data = request.get_json()
+        full_name = data.get("full_name", "")
+        phone = data.get("phone", "")
+        email = data.get("email", "")
+        address = data.get("address", "")
+        company = data.get("company", "")
+        purpose = data.get("purpose", "")
+        vehicle_number = data.get("vehicle_number", "")
+        entry_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = get_db()
+        cur = conn.execute(
+            """
+            INSERT INTO visitors
+                (full_name, phone, email, address, company, purpose,
+                 vehicle_number, entry_time, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (full_name, phone, email, address, company, purpose,
+             vehicle_number, entry_time, session["user_id"]),
+        )
+        conn.commit()
+        visitor_id = cur.lastrowid
+        conn.close()
+        return jsonify({"id": visitor_id, "message": "Visitor added successfully"}), 201
+
+    if request.method == "GET":
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT * FROM visitors ORDER BY id DESC"
+        ).fetchall()
+        conn.close()
+        return jsonify({"visitors": [dict_row(r) for r in rows]})
+
+
+@app.route("/api/visitors/<int:visitor_id>/exit", methods=["POST"])
+@login_required_json
+def mark_exit(visitor_id):
+    if not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    exit_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db()
+    conn.execute(
+        "UPDATE visitors SET exit_time = ? WHERE id = ?", (exit_time, visitor_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Exit recorded successfully"})
+
+
+@app.route("/api/visitors/<int:visitor_id>", methods=["GET", "DELETE"])
+@login_required_json
+def visitor_detail(visitor_id):
+    if request.method == "DELETE" and not check_role("admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+
+    conn = get_db()
+    visitor = conn.execute(
+        "SELECT * FROM visitors WHERE id = ?", (visitor_id,)
+    ).fetchone()
+
+    if not visitor:
+        conn.close()
+        return jsonify({"error": "Visitor not found"}), 404
+
+    if request.method == "GET":
+        conn.close()
+        return jsonify(dict_row(visitor))
+
+    conn.execute("DELETE FROM gatepasses WHERE visitor_id = ?", (visitor_id,))
+    conn.execute("DELETE FROM visitors WHERE id = ?", (visitor_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Visitor deleted successfully"})
+
+
+@app.route("/api/visitors/search")
+@login_required_json
+def search_visitors():
+    name = request.args.get("name", "")
+    date = request.args.get("date", "")
+    status = request.args.get("status", "")
+    query = "SELECT * FROM visitors WHERE 1=1"
+    params = []
+    if name:
+        query += " AND full_name LIKE ?"
+        params.append(f"%{name}%")
+    if date:
+        query += " AND date(entry_time) = ?"
+        params.append(date)
+    if status == "active":
+        query += " AND exit_time IS NULL"
+    elif status == "completed":
+        query += " AND exit_time IS NOT NULL"
+    query += " ORDER BY id DESC"
+    conn = get_db()
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return jsonify({"visitors": [dict_row(r) for r in rows]})
+
+
+@app.route("/api/visitors/export")
+@login_required_json
+def export_visitors():
+    if not check_role("admin", "staff"):
+        return jsonify({"error": "Forbidden: insufficient permissions"}), 403
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, full_name, phone, email, company, purpose, "
+        "vehicle_number, entry_time, exit_time FROM visitors ORDER BY id DESC"
+    ).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Name", "Phone", "Email", "Company", "Purpose",
+                     "Vehicle", "Entry Time", "Exit Time"])
+    for row in rows:
+        writer.writerow([row[k] for k in row.keys()])
+
+    response = Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=visitors.csv"},
+    )
+    return response
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

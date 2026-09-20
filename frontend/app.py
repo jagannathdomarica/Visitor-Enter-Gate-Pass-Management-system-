@@ -145,6 +145,36 @@ def signup():
     return render_template("signup.html")
 
 
+@app.route("/dashboard")
+def dashboard():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    conn = get_db()
+    today = datetime.now().strftime("%Y-%m-%d")
+    total_today = conn.execute(
+        "SELECT COUNT(*) FROM visitors WHERE date(entry_time) = ?", (today,)
+    ).fetchone()[0]
+    active_visitors = conn.execute(
+        "SELECT COUNT(*) FROM visitors WHERE exit_time IS NULL"
+    ).fetchone()[0]
+    active_passes = conn.execute(
+        "SELECT COUNT(*) FROM gatepasses WHERE status = 'active'"
+    ).fetchone()[0]
+    recent_visitors = conn.execute(
+        "SELECT * FROM visitors ORDER BY id DESC LIMIT 10"
+    ).fetchall()
+    conn.close()
+    return render_template(
+        "dashboard.html",
+        username=session["username"],
+        role=session["role"],
+        total_today=total_today,
+        active_visitors=active_visitors,
+        active_passes=active_passes,
+        recent_visitors=[dict_row(r) for r in recent_visitors],
+    )
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)
